@@ -1,8 +1,9 @@
 from typing import Any, Optional
 
 from . import composite
+from .composite import SerializationEncoding
 from .decoder import Decoder
-from .decorator import serializable
+from .decorator import serializable, union_serializable
 from .decoder import Decoder
 from .error import DeserializationError
 from .types import Deserializable, Serializable
@@ -48,7 +49,9 @@ __all__ = [
   'Decoder',
   'Deserializable',
   'Serializable',
+  'SerializationEncoding',
   'dumps',
   'loads',
-  'serializable'
+  'serializable',
+  'union_serializable'
 ]

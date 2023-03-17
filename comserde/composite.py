@@ -20,7 +20,7 @@ class SerializationEncoding:
 def serialize(value: Any, /, encoding: EncodingFormat) -> bytes:
   match encoding:
     case Serializable():
-      return value.__serialize__()
+      return encoding.__serialize__(value)
     case builtins.str():
       return primitive.serialize(value, encoding)
 
@@ -60,7 +60,7 @@ def serialize(value: Any, /, encoding: EncodingFormat) -> bytes:
       raise ValueError("No matching enumeration found")
 
     case _:
-      warnings.warn(f"Implicitly pickling object of type '{encoding}'")
+      warnings.warn(f"Implicitly pickling object of type '{encoding}'", stacklevel=2)
       return primitive.serialize(value, 'pickle')
 
 
