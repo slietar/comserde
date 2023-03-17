@@ -1,2 +1,4 @@
 class DeserializationError(Exception):
-  pass
+  """
+  An error raised upon reaching invalid data during deserialization.
+  """

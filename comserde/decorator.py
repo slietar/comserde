@@ -8,6 +8,13 @@ from .decoder import Decoder
 T = TypeVar('T')
 
 def serializable(target: type[T] | dict[str, composite.EncodingFormat], /) -> type[T]:
+  """
+  Adds serialization and deserialization capability to a class.
+
+  Parameters
+    target: A dictionary describing the encoding of each attribute of an instance of this class. Only valid when used on a regular class (as opposed to a `dataclasses.dataclass`).
+  """
+
   if type(target) == dict:
     return lambda cls: process_cls(cls, target) # type: ignore
   else:
