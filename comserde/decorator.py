@@ -1,8 +1,12 @@
 import dataclasses
+from enum import Enum, EnumType, Flag
+import enum
 import functools
 import operator
 from abc import ABC
 from typing import Any, Optional, TypeVar
+
+from .primitive import get_encoding_for_int_range
 
 from . import composite
 from .decoder import Decoder
@@ -19,14 +23,55 @@ def serializable(target: type[T] | dict[str, composite.EncodingFormat], /) -> ty
     target: A dictionary describing the encoding of each attribute of an instance of this class. Only valid when used on a regular class (as opposed to a `dataclasses.dataclass`).
   """
 
-  if type(target) == dict:
-    return lambda cls: process_cls(cls, target) # type: ignore
-  else:
-    return process_cls(target, None) # type: ignore
+  match target:
+    case dict():
+      return lambda cls: class_serializable(cls, target) # type: ignore
+    case _ if issubclass(target, Flag):
+      return flag_serializable(target)
+    case _ if issubclass(target, Enum):
+      return enum_serializable(target)
+    case _ if dataclasses.is_dataclass(target):
+      return class_serializable(target, None) # type: ignore
+    case _:
+      raise ValueError("Invalid decoration")
 
-def process_cls(target, raw_fields: Optional[dict[str, composite.EncodingFormat]], /):
-  if raw_fields is None:
-    assert dataclasses.is_dataclass(target)
+
+def enum_serializable(target: type[Enum]):
+  variants = list(target)
+  encoding = get_encoding_for_int_range(len(variants))
+
+  def serialize(self):
+    return composite.serialize(variants.index(self), encoding)
+
+  @staticmethod
+  def deserialize(decoder: Decoder):
+    return variants[composite.deserialize(decoder, encoding)]
+
+  target.__deserialize__ = deserialize # type: ignore
+  target.__serialize__ = serialize # type: ignore
+
+  return target
+
+
+def flag_serializable(target: type[Flag]):
+  variants = list(target)
+  encoding = get_encoding_for_int_range(2 ** len(variants))
+
+  def serialize(self):
+    return composite.serialize(sum([2 ** index for index, variant in enumerate(variants) if variant in self]), encoding)
+
+  @staticmethod
+  def deserialize(decoder: Decoder):
+    value = composite.deserialize(decoder, encoding)
+    return functools.reduce(operator.or_, [variant for index, variant in enumerate(variants) if (value & (2 ** index)) > 0])
+
+  target.__deserialize__ = deserialize # type: ignore
+  target.__serialize__ = serialize # type: ignore
+
+  return target
+
+def class_serializable(target, raw_fields: Optional[dict[str, composite.EncodingFormat]], /):
+  if (raw_fields is None):
     fields: dict[str, composite.EncodingFormat] = target.__dict__.get('__annotations__', dict())
   else:
     fields = raw_fields

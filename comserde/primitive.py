@@ -129,3 +129,26 @@ def deserialize(decoder: Decoder, encoding: EncodingFormat) -> Any:
         raise ValueError("Invalid encoding")
   except (DecodingError, struct.error) as e:
     raise DeserializationError from e
+
+
+def get_encoding_for_int_range(max_value: int, /, *, signed: bool = False) -> EncodingFormat:
+  """
+  Returns the appropriate encoding for an integer ranging from 0 to a fixed value.
+
+  Parameters
+    max_value: The maximum encoded integer, excluded.
+    signed: Whether the encoded integer can be negative.
+  """
+
+  assert not signed
+
+  for encoding, limit in [
+    ('u8', 1 << 8),
+    ('u16', 1 << 16),
+    ('u32', 1 << 32),
+    ('u64', 1 << 64)
+  ]:
+    if max_value <= limit:
+      return encoding
+
+  return 'v64'

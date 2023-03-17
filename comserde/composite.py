@@ -64,12 +64,12 @@ def serialize(value: Any, /, encoding: EncodingFormat) -> bytes:
       return primitive.serialize(value, 'pickle')
 
 
-def deserialize(decoder: Decoder, type: EncodingFormat) -> Any:
-  match type:
+def deserialize(decoder: Decoder, encoding: EncodingFormat) -> Any:
+  match encoding:
     case Serializable():
-      return type.__deserialize__(decoder)
+      return encoding.__deserialize__(decoder)
     case builtins.str():
-      return primitive.deserialize(decoder, type)
+      return primitive.deserialize(decoder, encoding)
 
     case builtins.bytearray:
       return bytearray(primitive.deserialize(decoder, 'bytes'))
