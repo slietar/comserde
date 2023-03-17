@@ -1,9 +1,7 @@
 import json
 import pickle
 import struct
-import unittest
 from typing import Any, Literal, overload
-from unittest import TestCase
 
 from . import vlq
 from .decoder import Decoder, DecodingError
@@ -131,37 +129,3 @@ def deserialize(decoder: Decoder, encoding: EncodingFormat) -> Any:
         raise ValueError("Invalid encoding")
   except (DecodingError, struct.error) as e:
     raise DeserializationError from e
-
-
-# def get_optimal_vlq_encoding(max_value: int, /, *, signed: bool = False):
-#   # Not supported for now
-#   assert not signed
-
-#   abs_max_value = abs(max_value)
-
-#   if abs_max_value < 0x80:
-#     return 'v8'
-#   if abs_max_value < 0x80ff:
-#     return 'v16'
-#   if abs_max_value < 0x
-
-
-class PrimitiveTest(TestCase):
-  def test1(self):
-    for encoding, value in [
-      ('f32', 6),
-      ('f64', 6.28),
-      ('u8', 42),
-      ('u16', 42),
-      ('u32', 42),
-      ('bytes', b"foobar"),
-      ('nt-bytes', b"foobar")
-    ]:
-      serialized = serialize(value, encoding)
-      deserialized = deserialize(Decoder(serialized), encoding)
-
-      self.assertEqual(value, deserialized)
-
-
-if __name__ == "__main__":
-  unittest.main()

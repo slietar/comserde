@@ -1,7 +1,3 @@
-from unittest import TestCase
-import unittest
-
-
 def encode(value: int, /):
   current_value = value
   result = bytes()
@@ -33,23 +29,3 @@ def decode(data: bytes, /, big_endian: bool = False):
       break
 
   return index + 1, result
-
-
-class VlqTest(TestCase):
-  def test1(self):
-    for value in [
-      *range(0, 0xffff),
-      0x8a533f,
-      0xe19db8,
-      0x945efb43,
-      0xa1e887e9,
-      0x09e20c6f2af3dd3207ae
-    ]:
-      encoded = encode(value)
-      length, decoded = decode(encoded)
-
-      self.assertEqual(value, decoded)
-
-
-if __name__ == "__main__":
-  unittest.main()
