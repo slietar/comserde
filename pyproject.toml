@@ -1,12 +1,12 @@
 [build-system]
-requires = ["setuptools>=42"]
+requires = ["setuptools>=61"]
 build-backend = "setuptools.build_meta"
 
 [project]
 name = "comserde"
 version = "0.0.0"
 
-description = "A Python package for serializing data structures into compact binary data"
+description = "Library for serializing data structures into compact binary data"
 readme = "readme.md"
 license = { text = "EUPL-1.2" }
 requires-python = ">=3.11"

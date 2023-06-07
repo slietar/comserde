@@ -1,6 +1,6 @@
 # Comserde
 
-**Comserde** (**com**pact **ser**ialization and **de**serialization) is a Python package for serializing data structures into compact binary data.
+**Comserde** (**com**pact **ser**ialization and **de**serialization) is a Python library for serializing data structures into compact binary data.
 
 
 ## Installation
@@ -20,7 +20,7 @@ Decorating a class with `@serializable` will mark it as serializable and deseria
 from comserde import serializable
 
 # Add a decorator to make the dataclass serializable
-# Order matters, the reverse won't work.
+# The order of decorators matters, the reverse won't work.
 @serializable
 @dataclass
 class User:
@@ -31,7 +31,7 @@ class User:
 To produce and consume bytes from a serializable object, call `dumps()` and `loads()`. A major difference compared to other serialization algorithms (such as `json`) is that you must provide the type of object you want to decode, `User` in this example.
 
 ```py
-from comserde import dumps, field, loads, serializable
+from comserde import dumps, loads
 
 user = User(age=34, name="John Doe")
 
@@ -82,7 +82,7 @@ The full serialization and deserialization process can be customized by adding t
 ```py
 from comserde import Decoder
 
-def User:
+class User:
   def __serialize__(self):
     return struct.pack(...)
 
@@ -93,7 +93,7 @@ def User:
 
 ### Specifying an explicit encoding
 
-For every field in a class, an encoding can be explicitly selected by using the `typing.Annotated` type introduced in PEP 593. The use of this type doesn't affect the behavior of type checkers while providing additional information to Comserde.
+For every field in a class, an encoding can be explicitly selected by using the `typing.Annotated` type introduced by [PEP 593](https://peps.python.org/pep-0593/). The use of this type doesn't affect the behavior of type checkers while providing additional information to Comserde.
 
 ```py
 from comserde import SerializationEncoding, serializable
@@ -144,7 +144,7 @@ The following encodings are supported:
   - `i8`/`i16`/`i32`/`i64`
   - `f32`/`f64`
   - `v8`/`v16`/`v32`/`v64` – unsigned variable-length quantity (VLQ) encoding of at least 1, 2, 4 and 8 bytes
-  - `w8`/`w16`/`w32`/`w64` – signed VLQ encoding
+<!-- - `w8`/`w16`/`w32`/`w64` – signed VLQ encoding -->
 - Bytes and strings
   - `bytes` – length-prefixed bytes
   - `nt-bytes` – null-terminated bytes
