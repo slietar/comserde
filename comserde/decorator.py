@@ -3,17 +3,16 @@ import functools
 import operator
 from abc import ABC
 from enum import Enum, Flag
-from typing import Any, Optional, TypeVar
+from typing import IO, Any, Optional, TypeVar
 
-from . import composite
-from .decoder import Decoder
+from .composite import EncodingFormat, deserialize, serialize
 from .primitive import get_encoding_for_int_range
 from .types import Serializable
 
 
 T = TypeVar('T')
 
-def serializable(target: type[T] | dict[str, composite.EncodingFormat], /) -> type[T]:
+def serializable(target: type[T] | dict[str, EncodingFormat], /) -> type[T]:
   """
   Add serialization and deserialization capabilities to a class.
 
@@ -38,15 +37,15 @@ def enum_serializable(target: type[Enum]):
   variants = list(target)
   encoding = get_encoding_for_int_range(len(variants))
 
-  def serialize(self):
-    return composite.serialize(variants.index(self), encoding)
+  def _serialize(self, file: IO[bytes]):
+    serialize(variants.index(self), file, encoding)
 
   @staticmethod
-  def deserialize(decoder: Decoder):
-    return variants[composite.deserialize(decoder, encoding)]
+  def _deserialize(file: IO[bytes]):
+    return variants[deserialize(file, encoding)]
 
-  target.__deserialize__ = deserialize # type: ignore
-  target.__serialize__ = serialize # type: ignore
+  target.__deserialize__ = _deserialize # type: ignore
+  target.__serialize__ = _serialize # type: ignore
 
   return target
 
@@ -55,53 +54,49 @@ def flag_serializable(target: type[Flag]):
   variants = list(target)
   encoding = get_encoding_for_int_range(2 ** len(variants))
 
-  def serialize(self):
-    return composite.serialize(sum([2 ** index for index, variant in enumerate(variants) if variant in self]), encoding)
+  def _serialize(self, file: IO[bytes]):
+    serialize(sum([2 ** index for index, variant in enumerate(variants) if variant in self]), file, encoding)
 
   @staticmethod
-  def deserialize(decoder: Decoder):
-    value = composite.deserialize(decoder, encoding)
+  def _deserialize(file: IO[bytes]):
+    value = deserialize(file, encoding)
     return functools.reduce(operator.or_, [variant for index, variant in enumerate(variants) if (value & (2 ** index)) > 0])
 
-  target.__deserialize__ = deserialize # type: ignore
-  target.__serialize__ = serialize # type: ignore
+  target.__deserialize__ = _deserialize # type: ignore
+  target.__serialize__ = _serialize # type: ignore
 
   return target
 
-def class_serializable(target, raw_fields: Optional[dict[str, composite.EncodingFormat]], /):
+def class_serializable(target, raw_fields: Optional[dict[str, EncodingFormat]], /):
   if (raw_fields is None):
-    fields: dict[str, composite.EncodingFormat] = target.__dict__.get('__annotations__', dict())
+    fields: dict[str, EncodingFormat] = target.__dict__.get('__annotations__', dict())
   else:
     fields = raw_fields
 
-  def serialize(self):
-    output = bytes()
-
+  def _serialize(self, file: IO[bytes]):
     for field_name, field_type in fields.items():
       field_value = getattr(self, field_name)
-      output += composite.serialize(field_value, field_type)
-
-    return output
+      serialize(field_value, file, field_type)
 
   @classmethod
-  def deserialize(cls, decoder: Decoder):
+  def _deserialize(cls, file: IO[bytes]):
     field_values = dict[str, Any]()
 
     for field_name, field_type in fields.items():
-      field_values[field_name] = composite.deserialize(decoder, field_type)
+      field_values[field_name] = deserialize(file, field_type)
 
     obj = cls.__new__(cls)
 
-    if hasattr(obj, '__deserialize_init__'):
-      obj.__deserialize_init__(**field_values)
+    if hasattr(obj, '__init_deserialize__'):
+      obj.__init_deserialize__(**field_values)
     else:
       for field_name, field_value in field_values.items():
         setattr(obj, field_name, field_value)
 
     return obj
 
-  target.__deserialize__ = deserialize
-  target.__serialize__ = serialize
+  target.__deserialize__ = _deserialize
+  target.__serialize__ = _serialize
 
   return target
 
@@ -114,20 +109,20 @@ def union_serializable(target: type[T]) -> type[T]:
   if not issubclass(target, ABC):
     raise ValueError("Target class must be an abstract base class")
 
-  def serialize(self):
+  def _serialize(self, file: IO[bytes]):
     assert isinstance(target, Serializable)
 
     if type(self).__serialize__ is target.__serialize__:
       raise ValueError(f"Instance of '{type(self).__name__}' is not serializable")
 
-    return composite.serialize(self, get_encoding())
+    serialize(self, file, get_encoding())
 
   @staticmethod
-  def deserialize(decoder: Decoder):
-    return composite.deserialize(decoder, get_encoding())
+  def _deserialize(file: IO[bytes]):
+    return deserialize(file, get_encoding())
 
-  target.__deserialize__ = deserialize # type: ignore
-  target.__serialize__ = serialize # type: ignore
+  target.__deserialize__ = _deserialize # type: ignore
+  target.__serialize__ = _serialize # type: ignore
 
   return target
 

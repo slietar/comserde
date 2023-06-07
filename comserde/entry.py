@@ -1,8 +1,11 @@
-from typing import Any, Optional
+from io import BytesIO
+from typing import IO, Any, Optional
 
 from .composite import EncodingFormat, deserialize, serialize
-from .decoder import Decoder
 
+
+def dump(value: Any, /, file: IO[bytes], encoding: Optional[EncodingFormat] = None):
+  serialize(value, file, encoding or type(value))
 
 def dumps(value: Any, /, encoding: Optional[EncodingFormat] = None):
   """
@@ -18,8 +21,14 @@ def dumps(value: Any, /, encoding: Optional[EncodingFormat] = None):
     Compact binary data which corresponds to `value`.
   """
 
-  return serialize(value, encoding or type(value))
+  file = BytesIO()
+  dump(value, file, encoding)
 
+  return file.getvalue()
+
+
+def load(file: IO[bytes], encoding: EncodingFormat):
+  return deserialize(file, encoding)
 
 def loads(data: bytes, /, encoding: EncodingFormat):
   """
@@ -38,10 +47,12 @@ def loads(data: bytes, /, encoding: EncodingFormat):
     DeserializationError: If `data` is corrupted or `encoding` is incorrect.
   """
 
-  return deserialize(Decoder(data), encoding)
+  return deserialize(BytesIO(data), encoding)
 
 
 __all__ = [
+  'dump',
   'dumps',
+  'load',
   'loads'
 ]

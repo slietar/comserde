@@ -1,11 +1,11 @@
 import json
 import pickle
 import struct
-from typing import Any, Literal, overload
+from typing import IO, Any, Literal, overload
 
-from . import vlq
-from .decoder import Decoder, DecodingError
+from .decoding import DecodingError, read_bytes, read_nt_bytes, read_struct
 from .error import DeserializationError
+from .vlq import read_vlq, write_vlq
 
 
 EncodingFormat = Literal[
@@ -24,104 +24,106 @@ EncodingFormat = Literal[
   'void'
 ]
 
-def serialize(value: Any, /, encoding: EncodingFormat) -> bytes:
+def serialize(value: Any, /, file: IO[bytes], encoding: EncodingFormat):
   match encoding:
     case 'bool':
-      return struct.pack('?', value)
+      file.write(struct.pack('?', value))
 
     case 'u8':
-      return struct.pack('<B', value)
+      file.write(struct.pack('<B', value))
     case 'u16':
-      return struct.pack('<H', value)
+      file.write(struct.pack('<H', value))
     case 'u32':
-      return struct.pack('<I', value)
+      file.write(struct.pack('<I', value))
     case 'u64':
-      return struct.pack('<Q', value)
+      file.write(struct.pack('<Q', value))
     case 'i8':
-      return struct.pack('<b', value)
+      file.write(struct.pack('<b', value))
     case 'i16':
-      return struct.pack('<h', value)
+      file.write(struct.pack('<h', value))
     case 'i32':
-      return struct.pack('<i', value)
+      file.write(struct.pack('<i', value))
     case 'i64':
-      return struct.pack('<q', value)
+      file.write(struct.pack('<q', value))
     case 'v8' | 'v16' | 'v32' | 'v64':
-      return vlq.encode(value)
+      write_vlq(value, file)
     case 'f32':
-      return struct.pack('<f', value)
+      file.write(struct.pack('<f', value))
     case 'f64':
-      return struct.pack('<d', value)
+      file.write(struct.pack('<d', value))
 
     case 'bytes':
-      return vlq.encode(len(value)) + value
+      write_vlq(len(value), file)
+      file.write(value)
     case 'nt-bytes':
-      return value + b"\x00"
+      file.write(value)
+      file.write(b"\x00")
     case 'utf-8' | 'utf-16':
-      return serialize(value.encode(encoding), 'bytes')
+      serialize(value.encode(encoding), file, 'bytes')
 
     case 'json':
-      return serialize(json.dumps(value), 'utf-8')
+      serialize(json.dumps(value), file, 'utf-8')
     case 'pickle':
-      return serialize(pickle.dumps(value), 'bytes')
+      serialize(pickle.dumps(value), file, 'bytes')
     case 'void':
-      return bytes()
+      pass
 
     case _:
       raise ValueError("Invalid encoding")
 
 
 @overload
-def deserialize(decoder: Decoder, encoding: Literal['bytes']) -> bytes:
+def deserialize(file: IO[bytes], encoding: Literal['bytes']) -> bytes:
   ...
 
 @overload
-def deserialize(decoder: Decoder, encoding: Literal['f32', 'f64']) -> float:
+def deserialize(file: IO[bytes], encoding: Literal['f32', 'f64']) -> float:
   ...
 
 @overload
-def deserialize(decoder: Decoder, encoding: EncodingFormat) -> Any:
+def deserialize(file: IO[bytes], encoding: EncodingFormat) -> Any:
   ...
 
-def deserialize(decoder: Decoder, encoding: EncodingFormat) -> Any:
+def deserialize(file: IO[bytes], encoding: EncodingFormat) -> Any:
   try:
     match encoding:
       case 'bool':
-        return decoder.read_struct('?')[0]
+        return read_struct('?', file)[0]
       case 'u8':
-        return decoder.read_struct('<B')[0]
+        return read_struct('<B', file)[0]
       case 'u16':
-        return decoder.read_struct('<H')[0]
+        return read_struct('<H', file)[0]
       case 'u32':
-        return decoder.read_struct('<I')[0]
+        return read_struct('<I', file)[0]
       case 'u64':
-        return decoder.read_struct('<Q')[0]
+        return read_struct('<Q', file)[0]
       case 'i8':
-        return decoder.read_struct('<b')[0]
+        return read_struct('<b', file)[0]
       case 'i16':
-        return decoder.read_struct('<h')[0]
+        return read_struct('<h', file)[0]
       case 'i32':
-        return decoder.read_struct('<i')[0]
+        return read_struct('<i', file)[0]
       case 'i64':
-        return decoder.read_struct('<q')[0]
+        return read_struct('<q', file)[0]
       case 'v8' | 'v16' | 'v32' | 'v64':
-        return decoder.read_vlq()
+        return read_vlq(file)
       case 'f32':
-        return decoder.read_struct('<f')[0]
+        return read_struct('<f', file)[0]
       case 'f64':
-        return decoder.read_struct('<d')[0]
+        return read_struct('<d', file)[0]
 
       case 'bytes':
-        length = decoder.read_vlq()
-        return decoder.read_bytes(length)
+        length = read_vlq(file)
+        return read_bytes(length, file)
       case 'nt-bytes':
-        return decoder.read_nt_bytes()
+        return read_nt_bytes(file)
       case 'utf-8' | 'utf-16':
-        return deserialize(decoder, 'bytes').decode(encoding)
+        return deserialize(file, 'bytes').decode(encoding)
 
       case 'json':
-        return json.loads(deserialize(decoder, 'utf-8'))
+        return json.loads(deserialize(file, 'utf-8'))
       case 'pickle':
-        return pickle.loads(deserialize(decoder, 'bytes'))
+        return pickle.loads(deserialize(file, 'bytes'))
       case 'void':
         return ()
 

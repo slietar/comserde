@@ -1,6 +1,4 @@
-from typing import Protocol, Self, runtime_checkable
-
-from .decoder import Decoder
+from typing import IO, Protocol, Self, runtime_checkable
 
 
 @runtime_checkable
@@ -9,7 +7,7 @@ class Serializable(Protocol):
   Protocol implemented by classes that are serializable.
   """
 
-  def __serialize__(self) -> bytes:
+  def __serialize__(self, file: IO[bytes]):
     ...
 
 @runtime_checkable
@@ -19,7 +17,7 @@ class Deserializable(Protocol):
   """
 
   @classmethod
-  def __deserialize__(cls, decoder: Decoder) -> Self:
+  def __deserialize__(cls, file: IO[bytes]) -> Self:
     ...
 
 

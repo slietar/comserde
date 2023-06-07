@@ -1,9 +1,10 @@
 import unittest
 from dataclasses import dataclass
+from tempfile import NamedTemporaryFile, TemporaryFile
 from typing import Self
 from unittest import TestCase
 
-from .. import Decoder, dumps, loads, primitive, serializable, vlq
+from .. import dump, dumps, load, loads, serializable
 
 
 class DecoratorTest(TestCase):
@@ -51,10 +52,36 @@ class PrimitiveTest(TestCase):
       ('bytes', b"foobar"),
       ('nt-bytes', b"foobar")
     ]:
-      serialized = primitive.serialize(value, encoding)
-      deserialized = primitive.deserialize(Decoder(serialized), encoding)
+      serialized = dumps(value, encoding)
+      deserialized = loads(serialized, encoding)
 
       self.assertEqual(value, deserialized)
+
+
+class FileTest(TestCase):
+  def test1(self):
+    @serializable
+    @dataclass
+    class User:
+      name: str
+      age: int
+
+    users = [
+      User("Alice", 42),
+      User("Bob", 35)
+    ]
+
+    format = list[User]
+
+    temp_file = NamedTemporaryFile(delete=False)
+
+    with open(temp_file.name, "wb") as file:
+      dump(users, file, format)
+
+    with open(temp_file.name, "rb") as file:
+      deserialized = load(file, format)
+
+    self.assertEqual(users, deserialized)
 
 
 class VlqTest(TestCase):
@@ -67,8 +94,8 @@ class VlqTest(TestCase):
       0xa1e887e9,
       0x09e20c6f2af3dd3207ae
     ]:
-      encoded = vlq.encode(value)
-      length, decoded = vlq.decode(encoded)
+      encoded = dumps(value, 'v8')
+      decoded = loads(encoded, 'v8')
 
       self.assertEqual(value, decoded)
 

@@ -1,119 +1,130 @@
 import builtins
 import collections
-from dataclasses import dataclass
 import types
 import typing
 import warnings
+from dataclasses import dataclass
 from types import UnionType
-from typing import Any, Optional
+from typing import IO, Any, Optional
 
-from . import primitive
-from .decoder import Decoder
+from .primitive import EncodingFormat as PrimitiveEncodingFormat
+from .primitive import deserialize as primitive_deserialize
+from .primitive import serialize as primitive_serialize
 from .types import Serializable
 
 
-EncodingFormat = primitive.EncodingFormat | UnionType | type | type[int]
+EncodingFormat = PrimitiveEncodingFormat | UnionType | type | type[int]
 
 @dataclass
 class SerializationEncoding:
   type: EncodingFormat
 
 
-def serialize(value: Any, /, encoding: EncodingFormat) -> bytes:
+def serialize(value: Any, /, file: IO[bytes], encoding: EncodingFormat):
   match encoding:
     case Serializable():
-      return encoding.__serialize__(value)
+      encoding.__serialize__(value, file)
     case builtins.str():
-      return primitive.serialize(value, encoding)
+      primitive_serialize(value, file, encoding)
 
     case builtins.bool:
-      return primitive.serialize(value, 'bool')
+      primitive_serialize(value, file, 'bool')
     case builtins.bytearray | builtins.bytes:
-      return primitive.serialize(bytes(value), 'bytes')
+      primitive_serialize(bytes(value), file, 'bytes')
     case builtins.complex:
-      return primitive.serialize(value.real, 'f32') + primitive.serialize(value.imag, 'f32')
+      primitive_serialize(value.real, file, 'f32')
+      primitive_serialize(value.imag, file, 'f32')
     case builtins.float:
-      return primitive.serialize(value, 'f32')
+      primitive_serialize(value, file, 'f32')
     case builtins.int:
-      return primitive.serialize(value, 'v8')
+      primitive_serialize(value, file, 'v8')
     case builtins.str:
-      return primitive.serialize(value, 'utf-8')
+      primitive_serialize(value, file, 'utf-8')
 
     case types.EllipsisType | types.NoneType:
-      return bytes()
+      pass
     case types.GenericAlias(__args__=(item_type,), __origin__=(builtins.list | builtins.set)):
-      return primitive.serialize(len(value), 'v8') + bytes().join(serialize(item, item_type) for item in value)
+      primitive_serialize(len(value), file, 'v8')
+
+      for item in value:
+        serialize(item, file, item_type)
     case types.GenericAlias(__args__=(item_type,), __origin__=collections.deque):
-      return serialize(value.maxlen, Optional[int]) + serialize(value, builtins.list[item_type])
+      serialize(value.maxlen, file, Optional[int])
+      serialize(value, file, builtins.list[item_type])
     case typing._AnnotatedAlias(__args__=(default_type,), __metadata__=metadata_entries): # type: ignore
       for entry in metadata_entries:
         if isinstance(entry, SerializationEncoding):
-          return serialize(value, entry.type)
+          serialize(value, file, entry.type)
+          return
 
-      return serialize(value, default_type)
+      serialize(value, file, default_type)
     case typing._LiteralGenericAlias(__args__=variants): # type: ignore
-      return primitive.serialize(variants.index(value), 'v8') if len(variants) > 1 else bytes()
+      if len(variants) > 1:
+        primitive_serialize(variants.index(value), file, 'v8')
     case types.UnionType(__args__=variants) | typing._UnionGenericAlias(__args__=variants): # type: ignore
       for variant_index, variant_type in enumerate(variants):
         match variant_type:
           case typing._AnnotatedAlias(__args__=(inner_type,)) | inner_type if isinstance(value, inner_type): # type: ignore
-            return primitive.serialize(variant_index, 'v8') + serialize(value, variant_type)
+            primitive_serialize(variant_index, file, 'v8')
+            serialize(value, file, variant_type)
 
       raise ValueError("No matching enumeration found")
 
     case _:
       warnings.warn(f"Implicitly pickling object of type '{encoding}'", stacklevel=2)
-      return primitive.serialize(value, 'pickle')
+      primitive_serialize(value, file, 'pickle')
 
 
-def deserialize(decoder: Decoder, encoding: EncodingFormat) -> Any:
+def deserialize(file: IO[bytes], encoding: EncodingFormat) -> Any:
   match encoding:
     case Serializable():
-      return encoding.__deserialize__(decoder)
+      return encoding.__deserialize__(file)
     case builtins.str():
-      return primitive.deserialize(decoder, encoding)
+      return primitive_deserialize(file, encoding)
 
     case builtins.bytearray:
-      return bytearray(primitive.deserialize(decoder, 'bytes'))
+      return bytearray(primitive_deserialize(file, 'bytes'))
     case builtins.bytes:
-      return primitive.deserialize(decoder, 'bytes')
+      return primitive_deserialize(file, 'bytes')
     case builtins.complex:
-      return complex(primitive.deserialize(decoder, 'f32'), primitive.deserialize(decoder, 'f32'))
+      return complex(primitive_deserialize(file, 'f32'), primitive_deserialize(file, 'f32'))
     case builtins.float:
-      return primitive.deserialize(decoder, 'f32')
+      return primitive_deserialize(file, 'f32')
     case builtins.int:
-      return primitive.deserialize(decoder, 'v8')
+      return primitive_deserialize(file, 'v8')
     case builtins.str:
-      return primitive.deserialize(decoder, 'utf-8')
+      return primitive_deserialize(file, 'utf-8')
 
     case types.EllipsisType:
       return Ellipsis
     case types.NoneType:
       return None
     case types.GenericAlias(__args__=(item_type,), __origin__=builtins.list):
-      return [deserialize(decoder, item_type) for _ in range(primitive.deserialize(decoder, 'v8'))]
+      return [deserialize(file, item_type) for _ in range(primitive_deserialize(file, 'v8'))]
     case types.GenericAlias(__args__=(item_type,), __origin__=builtins.set):
-      return {deserialize(decoder, item_type) for _ in range(primitive.deserialize(decoder, 'v8'))}
+      return {deserialize(file, item_type) for _ in range(primitive_deserialize(file, 'v8'))}
     case types.GenericAlias(__args__=(item_type,), __origin__=collections.deque):
-      maxlen = deserialize(decoder, Optional[int])
-      return collections.deque(deserialize(decoder, builtins.list[item_type]), maxlen=maxlen)
+      maxlen = deserialize(file, Optional[int])
+      return collections.deque(deserialize(file, builtins.list[item_type]), maxlen=maxlen)
     case typing._AnnotatedAlias(__args__=(default_type,), __metadata__=metadata_entries): # type: ignore
       for entry in metadata_entries:
         if isinstance(entry, SerializationEncoding):
-          return deserialize(decoder, entry.type)
+          return deserialize(file, entry.type)
 
-      return deserialize(decoder, default_type)
+      return deserialize(file, default_type)
     case typing._LiteralGenericAlias(__args__=variants): # type: ignore
-      return variants[primitive.deserialize(decoder, 'v8')] if len(variants) > 1 else variants[0]
+      return variants[primitive_deserialize(file, 'v8')] if len(variants) > 1 else variants[0]
     case types.UnionType(__args__=variants) | typing._UnionGenericAlias(__args__=variants): # type: ignore
-      variant_index = primitive.deserialize(decoder, 'v8')
-      return deserialize(decoder, variants[variant_index])
+      variant_index = primitive_deserialize(file, 'v8')
+      return deserialize(file, variants[variant_index])
 
     case _:
-      return primitive.deserialize(decoder, 'pickle')
+      return primitive_deserialize(file, 'pickle')
 
 
 __all__ = [
   'EncodingFormat',
-  'SerializationEncoding'
+  'SerializationEncoding',
+  'deserialize',
+  'serialize'
 ]
