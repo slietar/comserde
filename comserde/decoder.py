@@ -45,3 +45,9 @@ class Decoder:
     length, value = vlq.decode(self._partial_data)
     self._index += length
     return value
+
+
+__all__ = [
+  'Decoder',
+  'DecodingError',
+]

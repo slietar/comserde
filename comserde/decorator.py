@@ -1,15 +1,13 @@
 import dataclasses
-from enum import Enum, EnumType, Flag
-import enum
 import functools
 import operator
 from abc import ABC
+from enum import Enum, Flag
 from typing import Any, Optional, TypeVar
-
-from .primitive import get_encoding_for_int_range
 
 from . import composite
 from .decoder import Decoder
+from .primitive import get_encoding_for_int_range
 from .types import Serializable
 
 
@@ -17,7 +15,7 @@ T = TypeVar('T')
 
 def serializable(target: type[T] | dict[str, composite.EncodingFormat], /) -> type[T]:
   """
-  Adds serialization and deserialization capabilities to a class.
+  Add serialization and deserialization capabilities to a class.
 
   Parameters
     target: A dictionary describing the encoding of each attribute of an instance of this class. Only valid when used on a regular class (as opposed to a `dataclasses.dataclass`).
@@ -132,3 +130,9 @@ def union_serializable(target: type[T]) -> type[T]:
   target.__serialize__ = serialize # type: ignore
 
   return target
+
+
+__all__ = [
+  'serializable',
+  'union_serializable'
+]

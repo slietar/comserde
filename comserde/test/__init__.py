@@ -3,9 +3,7 @@ from dataclasses import dataclass
 from typing import Self
 from unittest import TestCase
 
-from .. import dumps, loads, primitive, vlq
-from ..decoder import Decoder
-from ..decorator import serializable
+from .. import Decoder, dumps, loads, primitive, serializable, vlq
 
 
 class DecoratorTest(TestCase):

@@ -1,5 +1,6 @@
 import builtins
 import collections
+from dataclasses import dataclass
 import types
 import typing
 import warnings
@@ -13,9 +14,10 @@ from .types import Serializable
 
 EncodingFormat = primitive.EncodingFormat | UnionType | type | type[int]
 
+@dataclass
 class SerializationEncoding:
-  def __init__(self, type: EncodingFormat, /):
-    self.type = type
+  type: EncodingFormat
+
 
 def serialize(value: Any, /, encoding: EncodingFormat) -> bytes:
   match encoding:
@@ -109,3 +111,9 @@ def deserialize(decoder: Decoder, encoding: EncodingFormat) -> Any:
 
     case _:
       return primitive.deserialize(decoder, 'pickle')
+
+
+__all__ = [
+  'EncodingFormat',
+  'SerializationEncoding'
+]

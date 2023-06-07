@@ -133,7 +133,7 @@ def deserialize(decoder: Decoder, encoding: EncodingFormat) -> Any:
 
 def get_encoding_for_int_range(max_value: int, /, *, signed: bool = False) -> EncodingFormat:
   """
-  Returns the appropriate encoding for an integer ranging from 0 to a fixed value.
+  Return the appropriate encoding for an integer ranging from 0 to a fixed value.
 
   Parameters
     max_value: The maximum encoded integer, excluded.

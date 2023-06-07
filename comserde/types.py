@@ -21,3 +21,9 @@ class Deserializable(Protocol):
   @classmethod
   def __deserialize__(cls, decoder: Decoder) -> Self:
     ...
+
+
+__all__ = [
+  'Deserializable',
+  'Serializable'
+]
