@@ -20,6 +20,7 @@ EncodingFormat = Literal[
   'utf-8', 'utf-16',
 
   'json',
+  'object',
   'pickle',
   'void'
 ]
@@ -63,6 +64,13 @@ def serialize(value: Any, /, file: IO[bytes], encoding: EncodingFormat):
 
     case 'json':
       serialize(json.dumps(value), file, 'utf-8')
+    case 'object':
+      from .composite import serialize as composite_serialize
+
+      serialize(type(value).__module__, file, 'utf-8')
+      serialize(type(value).__qualname__, file, 'utf-8')
+
+      composite_serialize(value, file, type(value))
     case 'pickle':
       serialize(pickle.dumps(value), file, 'bytes')
     case 'void':
@@ -122,14 +130,31 @@ def deserialize(file: IO[bytes], encoding: EncodingFormat) -> Any:
 
       case 'json':
         return json.loads(deserialize(file, 'utf-8'))
+      case 'object':
+        from importlib import import_module
+        from .composite import deserialize as composite_deserialize
+
+        module_name = deserialize(file, 'utf-8')
+        qualname = deserialize(file, 'utf-8')
+
+        obj = import_module(module_name)
+
+        for part in qualname.split('.'):
+          obj = getattr(obj, part)
+
+        assert isinstance(obj, type)
+
+        return composite_deserialize(file, obj)
       case 'pickle':
         return pickle.loads(deserialize(file, 'bytes'))
+      case 'unknown':
+        pass
       case 'void':
         return ()
 
       case _:
         raise ValueError("Invalid encoding")
-  except (DecodingError, struct.error) as e:
+  except (DecodingError, EOFError, struct.error) as e:
     raise DeserializationError from e
 
 

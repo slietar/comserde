@@ -41,6 +41,8 @@ def serialize(value: Any, /, file: IO[bytes], encoding: EncodingFormat):
     case builtins.str:
       primitive_serialize(value, file, 'utf-8')
 
+    case typing.Any:
+      serialize(value, file, 'object')
     case types.EllipsisType | types.NoneType:
       pass
     case types.GenericAlias(__args__=(item_type,), __origin__=(builtins.list | builtins.set)):
@@ -72,7 +74,7 @@ def serialize(value: Any, /, file: IO[bytes], encoding: EncodingFormat):
         raise ValueError("No matching enumeration found")
 
     case _:
-      warnings.warn(f"Implicitly pickling object of type '{encoding}'", stacklevel=2)
+      warnings.warn(f"Implicitly pickling object of type '{type(value)}' with format '{encoding}'", stacklevel=2)
       primitive_serialize(value, file, 'pickle')
 
 
@@ -96,6 +98,8 @@ def deserialize(file: IO[bytes], encoding: EncodingFormat) -> Any:
     case builtins.str:
       return primitive_deserialize(file, 'utf-8')
 
+    case typing.Any:
+      return deserialize(file, 'object')
     case types.EllipsisType:
       return Ellipsis
     case types.NoneType:
