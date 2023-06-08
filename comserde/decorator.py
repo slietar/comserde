@@ -3,7 +3,7 @@ import functools
 import operator
 from abc import ABC
 from enum import Enum, Flag
-from typing import IO, Any, Optional, TypeVar
+from typing import IO, Any, Callable, Mapping, Optional, TypeVar, overload
 
 from .composite import EncodingFormat, deserialize, serialize
 from .primitive import get_encoding_for_int_range
@@ -75,12 +75,22 @@ def class_serializable(target, raw_fields: Optional[dict[str, EncodingFormat]], 
 
     if hasattr(target, '__annotations__'):
       fields = target.__annotations__
+
+    for field_name, field in target.__dataclass_fields__.items():
+      if not field.metadata.get('serialize', True) and (field.default is dataclasses.MISSING) and (field.default_factory is dataclasses.MISSING):
+        raise ValueError(f"Field '{field_name}' is not serializable and has no default value")
   else:
     dataclass_params = None
     fields = raw_fields
 
   def _serialize(self, file: IO[bytes]):
     for field_name, field_type in fields.items():
+      if dataclass_params:
+        field = target.__dataclass_fields__[field_name]
+
+        if not field.metadata.get('serialize', True):
+          continue
+
       field_value = getattr(self, field_name)
       serialize(field_value, file, field_type)
 
@@ -89,7 +99,17 @@ def class_serializable(target, raw_fields: Optional[dict[str, EncodingFormat]], 
     field_values = dict[str, Any]()
 
     for field_name, field_type in fields.items():
-      field_values[field_name] = deserialize(file, field_type)
+      if dataclass_params:
+        field = target.__dataclass_fields__[field_name]
+
+        if field.metadata.get('serialize', True):
+          field_values[field_name] = deserialize(file, field_type)
+        elif field.default is not dataclasses.MISSING:
+          field_values[field_name] = field.default
+        elif field.default_factory is not dataclasses.MISSING:
+          field_values[field_name] = field.default_factory()
+      else:
+        field_values[field_name] = deserialize(file, field_type)
 
     obj = cls.__new__(cls)
 
@@ -107,6 +127,9 @@ def class_serializable(target, raw_fields: Optional[dict[str, EncodingFormat]], 
       else:
         for field_name, field_value in field_values.items():
           setattr(obj, field_name, field_value)
+
+    if hasattr(obj, '__post_init_deserialize__'):
+      obj.__post_init_deserialize__()
 
     return obj
 
@@ -142,7 +165,74 @@ def union_serializable(target: type[T]) -> type[T]:
   return target
 
 
+@overload  # `default` and `default_factory` are optional and mutually exclusive.
+def field(
+    *,
+    serialize: bool = True,
+
+    default: T,
+    init: bool = True,
+    repr: bool = True,
+    hash: Optional[bool] = None,
+    compare: bool = True,
+    metadata: Optional[Mapping[Any, Any]] = None,
+    kw_only: bool = ...,
+) -> T: ...
+
+@overload
+def field(
+    *,
+    serialize: bool = True,
+
+    default_factory: Callable[[], T],
+    init: bool = True,
+    repr: bool = True,
+    hash: Optional[bool] = None,
+    compare: bool = True,
+    metadata: Optional[Mapping[Any, Any]] = None,
+    kw_only: bool = ...,
+) -> T: ...
+
+@overload
+def field(
+    *,
+    serialize: bool = True,
+
+    init: bool = True,
+    repr: bool = True,
+    hash: Optional[bool] = None,
+    compare: bool = True,
+    metadata: Optional[Mapping[Any, Any]] = None,
+    kw_only: bool = ...,
+) -> Any: ...
+
+def field(
+  *,
+  serialize: bool = True,
+
+  default: T = dataclasses.MISSING,
+  default_factory: Callable[[], T] = dataclasses.MISSING, # type: ignore
+  init: bool = True,
+  repr: bool = True,
+  hash: Optional[bool] = None,
+  compare: bool = True,
+  metadata: Optional[Mapping[Any, Any]] = None,
+  kw_only: bool = dataclasses.MISSING # type: ignore
+):
+  return dataclasses.field(
+    default=default,
+    default_factory=default_factory,
+    init=init,
+    repr=repr,
+    hash=hash,
+    compare=compare,
+    metadata={**(metadata or dict()), 'serialize': serialize },
+    kw_only=kw_only
+  ) # type: ignore
+
+
 __all__ = [
+  'field',
   'serializable',
   'union_serializable'
 ]

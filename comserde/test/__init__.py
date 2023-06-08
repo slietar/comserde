@@ -1,10 +1,10 @@
 import unittest
 from dataclasses import dataclass
-from tempfile import NamedTemporaryFile, TemporaryFile
+from tempfile import NamedTemporaryFile
 from typing import Self
 from unittest import TestCase
 
-from .. import dump, dumps, load, loads, serializable
+from .. import dump, dumps, field, load, loads, serializable
 
 
 class DecoratorTest(TestCase):
@@ -19,7 +19,7 @@ class DecoratorTest(TestCase):
     encoded = dumps(value)
     decoded = loads(encoded, A)
 
-    self.assertEqual(value, decoded)
+    self.assertEqual(decoded, value)
 
   def test2(self):
     @serializable({
@@ -38,7 +38,21 @@ class DecoratorTest(TestCase):
     encoded = dumps(value)
     decoded = loads(encoded, A)
 
-    self.assertEqual(value, decoded)
+    self.assertEqual(decoded, value)
+
+  def test3(self):
+    @serializable
+    @dataclass
+    class A:
+      a: int = 4091
+      b: str = '61128'
+      c: int = field(default=16, serialize=False)
+
+    value = A(a=4, c=32)
+    encoded = dumps(value)
+    decoded = loads(encoded, A)
+
+    self.assertEqual(decoded, A(a=4))
 
 
 class PrimitiveTest(TestCase):
