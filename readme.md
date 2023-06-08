@@ -80,15 +80,15 @@ class User:
 The full serialization and deserialization process can be customized by adding the `__serialize__` and `__deserialize__` methods.
 
 ```py
-from comserde import Decoder
+from typing import IO
 
 class User:
-  def __serialize__(self):
-    return struct.pack(...)
+  def __serialize__(self, file: IO[bytes]):
+    file.write(...)
 
   @classmethod
-  def __deserialize__(cls, decoder: Decoder):
-    return cls(*struct.unpack(...))
+  def __deserialize__(cls, file: IO[bytes]):
+    return cls(file.read(...))
 ```
 
 ### Specifying an explicit encoding
@@ -96,13 +96,13 @@ class User:
 For every field in a class, an encoding can be explicitly selected by using the `typing.Annotated` type introduced by [PEP 593](https://peps.python.org/pep-0593/). The use of this type doesn't affect the behavior of type checkers while providing additional information to Comserde.
 
 ```py
-from comserde import SerializationEncoding, serializable
+from comserde import SerializationFormat, serializable
 
 @serializable
 @dataclass
 class Vec2d:
-  x: Annotated[float, SerializationEncoding('f64')]
-  y: Annotated[float, SerializationEncoding('f64')]
+  x: Annotated[float, SerializationFormat('f64')]
+  y: Annotated[float, SerializationFormat('f64')]
 ```
 
 The same syntax can be used on on regular classes, however the encoding can also be specified directly.
