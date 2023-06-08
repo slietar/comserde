@@ -68,9 +68,15 @@ def flag_serializable(target: type[Flag]):
   return target
 
 def class_serializable(target, raw_fields: Optional[dict[str, EncodingFormat]], /):
+  fields: dict[str, EncodingFormat]
+
   if (raw_fields is None):
-    fields: dict[str, EncodingFormat] = target.__dict__.get('__annotations__', dict())
+    dataclass_params = target.__dataclass_params__
+
+    if hasattr(target, '__annotations__'):
+      fields = target.__annotations__
   else:
+    dataclass_params = None
     fields = raw_fields
 
   def _serialize(self, file: IO[bytes]):
@@ -90,8 +96,17 @@ def class_serializable(target, raw_fields: Optional[dict[str, EncodingFormat]], 
     if hasattr(obj, '__init_deserialize__'):
       obj.__init_deserialize__(**field_values)
     else:
-      for field_name, field_value in field_values.items():
-        setattr(obj, field_name, field_value)
+      if dataclass_params and dataclass_params.frozen:
+        if hasattr(obj, '__slots__'):
+          new_state = tuple(field_values[field_name] for field_name in obj.__slots__)
+
+          obj.__setstate__(new_state)
+        else:
+          for field_name, field_value in field_values.items():
+            obj.__dict__[field_name] = field_value
+      else:
+        for field_name, field_value in field_values.items():
+          setattr(obj, field_name, field_value)
 
     return obj
 

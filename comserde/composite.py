@@ -16,7 +16,7 @@ from .types import Serializable
 EncodingFormat = PrimitiveEncodingFormat | UnionType | type | type[int]
 
 @dataclass
-class SerializationEncoding:
+class SerializationFormat:
   type: EncodingFormat
 
 
@@ -53,7 +53,7 @@ def serialize(value: Any, /, file: IO[bytes], encoding: EncodingFormat):
       serialize(value, file, builtins.list[item_type])
     case typing._AnnotatedAlias(__args__=(default_type,), __metadata__=metadata_entries): # type: ignore
       for entry in metadata_entries:
-        if isinstance(entry, SerializationEncoding):
+        if isinstance(entry, SerializationFormat):
           serialize(value, file, entry.type)
           return
 
@@ -67,8 +67,9 @@ def serialize(value: Any, /, file: IO[bytes], encoding: EncodingFormat):
           case typing._AnnotatedAlias(__args__=(inner_type,)) | inner_type if isinstance(value, inner_type): # type: ignore
             primitive_serialize(variant_index, file, 'v8')
             serialize(value, file, variant_type)
-
-      raise ValueError("No matching enumeration found")
+            break
+      else:
+        raise ValueError("No matching enumeration found")
 
     case _:
       warnings.warn(f"Implicitly pickling object of type '{encoding}'", stacklevel=2)
@@ -108,7 +109,7 @@ def deserialize(file: IO[bytes], encoding: EncodingFormat) -> Any:
       return collections.deque(deserialize(file, builtins.list[item_type]), maxlen=maxlen)
     case typing._AnnotatedAlias(__args__=(default_type,), __metadata__=metadata_entries): # type: ignore
       for entry in metadata_entries:
-        if isinstance(entry, SerializationEncoding):
+        if isinstance(entry, SerializationFormat):
           return deserialize(file, entry.type)
 
       return deserialize(file, default_type)
@@ -124,7 +125,7 @@ def deserialize(file: IO[bytes], encoding: EncodingFormat) -> Any:
 
 __all__ = [
   'EncodingFormat',
-  'SerializationEncoding',
+  'SerializationFormat',
   'deserialize',
   'serialize'
 ]
