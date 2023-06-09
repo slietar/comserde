@@ -1,5 +1,6 @@
 import builtins
 import collections
+import sys
 import types
 import typing
 import warnings
@@ -40,6 +41,9 @@ def serialize(value: Any, /, file: IO[bytes], encoding: EncodingFormat):
       primitive_serialize(value, file, 'v8')
     case builtins.str:
       primitive_serialize(value, file, 'utf-8')
+
+    case builtins.type() if (pathlib := sys.modules.get('pathlib')) and issubclass(encoding, pathlib.PurePath):
+      return primitive_serialize(str(value), file, 'utf-8')
 
     case typing.Any:
       serialize(value, file, 'object')
@@ -97,6 +101,9 @@ def deserialize(file: IO[bytes], encoding: EncodingFormat) -> Any:
       return primitive_deserialize(file, 'v8')
     case builtins.str:
       return primitive_deserialize(file, 'utf-8')
+
+    case builtins.type() if (pathlib := sys.modules.get('pathlib')) and issubclass(encoding, pathlib.PurePath):
+      return encoding(primitive_deserialize(file, 'utf-8'))
 
     case typing.Any:
       return deserialize(file, 'object')
