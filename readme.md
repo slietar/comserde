@@ -14,7 +14,7 @@ $ pip install comserde
 
 ### Serializing dataclasses
 
-Decorating a class with `@serializable` will mark it as serializable and deserializable. Type annotations are used to infer the encoding of each field.
+Decorating a dataclass with `@serializable` will mark it as serializable and deserializable. Type annotations are used to infer the format of each field.
 
 ```py
 from comserde import serializable
@@ -39,9 +39,32 @@ data = dumps(user)
 user = loads(data, User)
 ```
 
+More complex types can be defined using most of the typical type hints, such as generics and union types.
+
+```py
+from typing import NewType
+
+class User:
+  id: UserId
+  friends: list[Admin | User]
+  images: dict[ImageId, tuple[str, Optional[Image]]]
+  profile_image: bytes
+```
+
+To prevent a specific field from being serialized, assign it with Comserde's `field()` instead of [`dataclasses.field()`](https://docs.python.org/3/library/dataclasses.html#dataclasses.field) and set `serialize=False`. Other field attributes can be set as usual.
+
+```py
+from comserde import field
+
+class User:
+  age: Optional[int]
+  name: str
+  _cache: Optional[int] = field(default=None, serialize=False)
+```
+
 ### Serializing regular classes
 
-Regular classes can also be serialized, although the types of each attribute must be written twice, therefore dataclasses are preferred.
+Regular classes can also be serialized, although the types of each attribute must be explicitly provided, which is why dataclasses are preferred.
 
 ```py
 from comserde import serializable
@@ -75,7 +98,7 @@ class User:
     self.name = name
 ```
 
-### Customizing serialization encodings
+### Customizing serialization formats
 
 The full serialization and deserialization process can be customized by adding the `__serialize__` and `__deserialize__` methods.
 
@@ -91,9 +114,9 @@ class User:
     return cls(file.read(...))
 ```
 
-### Specifying an explicit encoding
+### Specifying an explicit format
 
-For every field in a class, an encoding can be explicitly selected by using the `typing.Annotated` type introduced by [PEP 593](https://peps.python.org/pep-0593/). The use of this type doesn't affect the behavior of type checkers while providing additional information to Comserde.
+For every field in a class, a format can be explicitly selected by using the `typing.Annotated` type introduced by [PEP 593](https://peps.python.org/pep-0593/). The use of this type doesn't affect the behavior of type checkers while providing additional information to Comserde.
 
 ```py
 from comserde import SerializationFormat, serializable
@@ -105,7 +128,7 @@ class Vec2d:
   y: Annotated[float, SerializationFormat('f64')]
 ```
 
-The same syntax can be used on on regular classes, however the encoding can also be specified directly.
+The same syntax can be used on on regular classes, however the format can also be specified directly.
 
 ```py
 @serializable({
@@ -118,7 +141,7 @@ class Vec2d:
 
 ### Serializing any object
 
-Objects the are not marked with `@serializable` and that do not implement `__serializable__()` will be pickled, and a warning is emitted if the the `pickle` encoding is not explicit. Encoding a large number of pickled objects can significantly increase the output size due to the overhead of the pickle format.
+Objects that are not marked with `@serializable` and that do not implement `__serializable__()` are pickled when serialized, and a warning is emitted if the the `pickle` format is not explicit. Keep in mind that pickling a large number of individual objects can significantly increase the output size due to the overhead of each pickled object.
 
 ### Handling exceptions
 
@@ -134,30 +157,44 @@ except DeserializationError:
 
 ## Reference
 
-### Encodings
+### Primitive formats
 
-The following encodings are supported:
+The following serialization formats are supported:
 
 - Booleans and scalars
   - `bool`
-  - `u8`/`u16`/`u32`/`u64`
-  - `i8`/`i16`/`i32`/`i64`
-  - `f32`/`f64`
-  - `v8`/`v16`/`v32`/`v64` – unsigned variable-length quantity (VLQ) encoding of at least 1, 2, 4 and 8 bytes
-<!-- - `w8`/`w16`/`w32`/`w64` – signed VLQ encoding -->
+  - `u8`, `u16`, `u32`, `u64`
+  - `i8`, `i16`, `i32`, `i64`
+  - `f32`, `f64`
+  - `v8`, `v16`, `v32`, `v64` – unsigned variable-length quantity (VLQ) encoding of at least 1, 2, 4 and 8 bytes
+  - `w8`, `w16`, `w32`, `w64` – signed VLQ encoding
 - Bytes and strings
   - `bytes` – length-prefixed bytes
   - `nt-bytes` – null-terminated bytes
-  - `bytearray`
-  - `utf-8`/`utf-16`
-- Other formats
+  - `utf-8`, `utf-16`
+- Others
   - `json`
+  - `object` – stores the full qualified name of the object's class and uses the class as the serialization format; useful when the class is not known in advance, e.g. because it might be a subclass
   - `pickle`
   - `void`
 
-Most types of the standard library are supported. In particular:
+### Composite formats
 
-- `EllipsisType`, `NoneType` and `Literal[T]` do not produce any data.
-- `complex` maps to two `f32`.
-- `float` maps to `f32`.
-- `int` maps to `v8`.
+- [`deque[T]`](https://docs.python.org/3/library/collections.html#collections.deque)
+- [`NewType('X', T)`](https://docs.python.org/3/library/typing.html#typing.NewType)
+- [`PurePath`](https://docs.python.org/3/library/pathlib.html#pathlib.PurePath) and all of its subclasses
+- `bool`
+- `bytearray`, `bytes`
+- `complex` – as two `f64`
+- `dict[K, V]`
+- `EllipsisType`, `NoneType`, `Literal[T]`, `tuple[()]` – no data produced
+- `float` – as `f64`
+- `frozenset`
+- `int` – as `w8`
+- `list[T]`
+- `Literal[T, S, etc.]`
+- `set[T]`
+- `str`
+- `T | S`
+- `tuple[T, ...]`
+- `tuple[T, S, etc.]`
