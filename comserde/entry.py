@@ -2,6 +2,7 @@ from io import BytesIO
 from typing import IO, Any, Optional
 
 from .composite import EncodingFormat, deserialize, serialize
+from .error import DeserializationEOFError, DeserializationError
 
 
 def dump(value: Any, /, file: IO[bytes], encoding: Optional[EncodingFormat] = None):
@@ -28,7 +29,15 @@ def dumps(value: Any, /, encoding: Optional[EncodingFormat] = None):
 
 
 def load(file: IO[bytes], encoding: EncodingFormat):
-  return deserialize(file, encoding)
+  current_pos = file.tell()
+
+  try:
+    return deserialize(file, encoding)
+  except DeserializationError as e:
+    if file.tell() == current_pos:
+      raise DeserializationEOFError from e
+
+    raise
 
 def loads(data: bytes, /, encoding: EncodingFormat):
   """
@@ -45,6 +54,7 @@ def loads(data: bytes, /, encoding: EncodingFormat):
 
   Raises
     DeserializationError: If `data` is corrupted or `encoding` is incorrect.
+    DeserializationEOFError: If `data` is empty.
   """
 
   return deserialize(BytesIO(data), encoding)

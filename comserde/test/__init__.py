@@ -1,11 +1,12 @@
-from io import BytesIO
 import unittest
 from dataclasses import dataclass
+from io import BytesIO
 from tempfile import NamedTemporaryFile
 from typing import Self
 from unittest import TestCase
 
-from .. import dump, dumps, field, load, loads, serializable, vlq
+from .. import (DeserializationEOFError, dump, dumps, field, load, loads,
+                serializable, vlq)
 
 
 class DecoratorTest(TestCase):
@@ -32,7 +33,6 @@ class DecoratorTest(TestCase):
     )
 
     encoded = dumps(value)
-    print(len(encoded))
     decoded = loads(encoded, A)
 
     self.assertEqual(decoded, value)
@@ -70,6 +70,26 @@ class DecoratorTest(TestCase):
 
     self.assertEqual(decoded, A(a=4))
 
+  def test4(self):
+    @serializable
+    @dataclass
+    class A:
+      a: int = 4091
+      b: str = '61128'
+
+    file = BytesIO()
+
+    for _ in range(3):
+      dump(A(), file)
+
+    file.seek(0)
+
+    for _ in range(3):
+      load(file, A)
+
+    with self.assertRaises(DeserializationEOFError):
+      load(file, A)
+
 
 class PrimitiveTest(TestCase):
   def test1(self):
@@ -102,7 +122,6 @@ class FileTest(TestCase):
     ]
 
     format = list[User]
-
     temp_file = NamedTemporaryFile(delete=False)
 
     with open(temp_file.name, "wb") as file:
