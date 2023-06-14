@@ -154,7 +154,7 @@ def deserialize(file: IO[bytes], encoding: EncodingFormat) -> Any:
 
       case _:
         raise ValueError("Invalid encoding")
-  except (DecodingError, EOFError, struct.error) as e:
+  except (DecodingError, EOFError, UnicodeDecodeError, struct.error) as e:
     raise DeserializationError from e
 
 

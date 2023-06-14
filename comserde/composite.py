@@ -33,10 +33,10 @@ def serialize(value: Any, /, file: IO[bytes], encoding: EncodingFormat):
     case builtins.bytearray | builtins.bytes:
       primitive_serialize(bytes(value), file, 'bytes')
     case builtins.complex:
-      primitive_serialize(value.real, file, 'f32')
-      primitive_serialize(value.imag, file, 'f32')
+      primitive_serialize(value.real, file, 'f64')
+      primitive_serialize(value.imag, file, 'f64')
     case builtins.float:
-      primitive_serialize(value, file, 'f32')
+      primitive_serialize(value, file, 'f64')
     case builtins.int:
       primitive_serialize(value, file, 'v8')
     case builtins.str:
@@ -76,6 +76,8 @@ def serialize(value: Any, /, file: IO[bytes], encoding: EncodingFormat):
             break
       else:
         raise ValueError("No matching enumeration found")
+    case typing.NewType(__supertype__=supertype):
+      serialize(value, file, supertype)
 
     case _:
       warnings.warn(f"Implicitly pickling object of type '{type(value)}' with format '{encoding}'", stacklevel=2)
@@ -94,9 +96,9 @@ def deserialize(file: IO[bytes], encoding: EncodingFormat) -> Any:
     case builtins.bytes:
       return primitive_deserialize(file, 'bytes')
     case builtins.complex:
-      return complex(primitive_deserialize(file, 'f32'), primitive_deserialize(file, 'f32'))
+      return complex(primitive_deserialize(file, 'f64'), primitive_deserialize(file, 'f64'))
     case builtins.float:
-      return primitive_deserialize(file, 'f32')
+      return primitive_deserialize(file, 'f64')
     case builtins.int:
       return primitive_deserialize(file, 'v8')
     case builtins.str:
@@ -129,6 +131,8 @@ def deserialize(file: IO[bytes], encoding: EncodingFormat) -> Any:
     case types.UnionType(__args__=variants) | typing._UnionGenericAlias(__args__=variants): # type: ignore
       variant_index = primitive_deserialize(file, 'v8')
       return deserialize(file, variants[variant_index])
+    case typing.NewType(__supertype__=supertype):
+      return encoding(deserialize(file, supertype))
 
     case _:
       return primitive_deserialize(file, 'pickle')
