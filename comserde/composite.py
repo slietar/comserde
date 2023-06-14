@@ -38,7 +38,7 @@ def serialize(value: Any, /, file: IO[bytes], encoding: EncodingFormat):
     case builtins.float:
       primitive_serialize(value, file, 'f64')
     case builtins.int:
-      primitive_serialize(value, file, 'v8')
+      primitive_serialize(value, file, 'w8')
     case builtins.str:
       primitive_serialize(value, file, 'utf-8')
 
@@ -109,7 +109,7 @@ def deserialize(file: IO[bytes], encoding: EncodingFormat) -> Any:
     case builtins.float:
       return primitive_deserialize(file, 'f64')
     case builtins.int:
-      return primitive_deserialize(file, 'v8')
+      return primitive_deserialize(file, 'w8')
     case builtins.str:
       return primitive_deserialize(file, 'utf-8')
 

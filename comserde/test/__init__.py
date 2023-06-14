@@ -1,10 +1,11 @@
+from io import BytesIO
 import unittest
 from dataclasses import dataclass
 from tempfile import NamedTemporaryFile
 from typing import Self
 from unittest import TestCase
 
-from .. import dump, dumps, field, load, loads, serializable
+from .. import dump, dumps, field, load, loads, serializable, vlq
 
 
 class DecoratorTest(TestCase):
@@ -18,21 +19,21 @@ class DecoratorTest(TestCase):
       d: dict[int, int]
       e: tuple[int, int]
       f: tuple[int, ...]
+      g: tuple[()]
 
     value = A(
       a=4091,
       b='61128',
-      c=[3, 4, 5],
+      c=[3, 4, -5],
       d={6: 7, 8: 9},
       e=(10, 11),
-      f=(12, 13, 14)
+      f=(12, 13, 14),
+      g=()
     )
 
     encoded = dumps(value)
-    decoded = loads(encoded, A)
-
-    print(encoded)
     print(len(encoded))
+    decoded = loads(encoded, A)
 
     self.assertEqual(decoded, value)
 
@@ -123,10 +124,19 @@ class VlqTest(TestCase):
       0xa1e887e9,
       0x09e20c6f2af3dd3207ae
     ]:
-      encoded = dumps(value, 'v8')
-      decoded = loads(encoded, 'v8')
+      file = BytesIO()
+      vlq.write_vlq(value, file)
+      vlq.write_vlq_signed(value, file)
+      vlq.write_vlq_signed(-value, file)
+      vlq.write_vlq_signed(value, file, fixed_size=1)
+      vlq.write_vlq_signed(-value, file, fixed_size=1)
 
-      self.assertEqual(value, decoded)
+      file.seek(0)
+      self.assertEqual(vlq.read_vlq(file), value)
+      self.assertEqual(vlq.read_vlq_signed(file), value)
+      self.assertEqual(vlq.read_vlq_signed(file), -value)
+      self.assertEqual(vlq.read_vlq_signed(file, fixed_size=1), value)
+      self.assertEqual(vlq.read_vlq_signed(file, fixed_size=1), -value)
 
 if __name__ == "__main__":
   unittest.main()

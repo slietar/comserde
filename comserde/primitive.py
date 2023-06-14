@@ -5,7 +5,8 @@ from typing import IO, Any, Literal, overload
 
 from .decoding import DecodingError, read_bytes, read_nt_bytes, read_struct
 from .error import DeserializationError
-from .vlq import read_vlq, write_vlq
+from .vlq import (read_vlq, read_vlq_signed, read_vlq_sized, write_vlq,
+                  write_vlq_signed, write_vlq_sized)
 
 
 EncodingFormat = Literal[
@@ -14,6 +15,7 @@ EncodingFormat = Literal[
   'u8', 'u16', 'u32', 'u64',
   'i8', 'i16', 'i32', 'i64',
   'v8', 'v16', 'v32', 'v64',
+  'w8', 'w16', 'w32', 'w64',
   'f32', 'f64',
 
   'bytes', 'nt-bytes',
@@ -48,6 +50,22 @@ def serialize(value: Any, /, file: IO[bytes], encoding: EncodingFormat):
       file.write(struct.pack('<q', value))
     case 'v8' | 'v16' | 'v32' | 'v64':
       write_vlq(value, file)
+    case 'v8':
+      write_vlq_sized(value, file)
+    case 'v16':
+      write_vlq_sized(value, file, fixed_size=1)
+    case 'v32':
+      write_vlq_sized(value, file, fixed_size=2)
+    case 'v64':
+      write_vlq_sized(value, file, fixed_size=3)
+    case 'w8':
+      write_vlq_signed(value, file)
+    case 'w16':
+      write_vlq_signed(value, file, fixed_size=1)
+    case 'w32':
+      write_vlq_signed(value, file, fixed_size=2)
+    case 'w64':
+      write_vlq_signed(value, file, fixed_size=3)
     case 'f32':
       file.write(struct.pack('<f', value))
     case 'f64':
@@ -113,8 +131,22 @@ def deserialize(file: IO[bytes], encoding: EncodingFormat) -> Any:
         return read_struct('<i', file)[0]
       case 'i64':
         return read_struct('<q', file)[0]
-      case 'v8' | 'v16' | 'v32' | 'v64':
-        return read_vlq(file)
+      case 'v8':
+        return read_vlq_sized(file)
+      case 'v16':
+        return read_vlq_sized(file, fixed_size=1)
+      case 'v32':
+        return read_vlq_sized(file, fixed_size=2)
+      case 'v64':
+        return read_vlq_sized(file, fixed_size=3)
+      case 'w8':
+        return read_vlq_signed(file)
+      case 'w16':
+        return read_vlq_signed(file, fixed_size=1)
+      case 'w32':
+        return read_vlq_signed(file, fixed_size=2)
+      case 'w64':
+        return read_vlq_signed(file, fixed_size=3)
       case 'f32':
         return read_struct('<f', file)[0]
       case 'f64':
@@ -132,6 +164,7 @@ def deserialize(file: IO[bytes], encoding: EncodingFormat) -> Any:
         return json.loads(deserialize(file, 'utf-8'))
       case 'object':
         from importlib import import_module
+
         from .composite import deserialize as composite_deserialize
 
         module_name = deserialize(file, 'utf-8')
@@ -147,8 +180,6 @@ def deserialize(file: IO[bytes], encoding: EncodingFormat) -> Any:
         return composite_deserialize(file, obj)
       case 'pickle':
         return pickle.loads(deserialize(file, 'bytes'))
-      case 'unknown':
-        pass
       case 'void':
         return ()
 
