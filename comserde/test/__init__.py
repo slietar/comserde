@@ -12,12 +12,27 @@ class DecoratorTest(TestCase):
     @serializable
     @dataclass
     class A:
-      a: int = 4091
-      b: str = '61128'
+      a: int
+      b: str
+      c: list[int]
+      d: dict[int, int]
+      e: tuple[int, int]
+      f: tuple[int, ...]
 
-    value = A()
+    value = A(
+      a=4091,
+      b='61128',
+      c=[3, 4, 5],
+      d={6: 7, 8: 9},
+      e=(10, 11),
+      f=(12, 13, 14)
+    )
+
     encoded = dumps(value)
     decoded = loads(encoded, A)
+
+    print(encoded)
+    print(len(encoded))
 
     self.assertEqual(decoded, value)
 

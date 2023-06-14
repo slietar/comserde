@@ -49,11 +49,20 @@ def serialize(value: Any, /, file: IO[bytes], encoding: EncodingFormat):
       serialize(value, file, 'object')
     case types.EllipsisType | types.NoneType:
       pass
-    case types.GenericAlias(__args__=(item_type,), __origin__=(builtins.list | builtins.set)):
+    case types.GenericAlias(__args__=(key_type, value_type), __origin__=builtins.dict):
+      primitive_serialize(len(value), file, 'v8')
+
+      for key, item in value.items():
+        serialize(key, file, key_type)
+        serialize(item, file, value_type)
+    case types.GenericAlias(__args__=(item_type,), __origin__=(builtins.frozenset | builtins.list | builtins.set)) | types.GenericAlias(__args__=(item_type, builtins.Ellipsis), __origin__=builtins.tuple):
       primitive_serialize(len(value), file, 'v8')
 
       for item in value:
         serialize(item, file, item_type)
+    case types.GenericAlias(__args__=arg_types, __origin__=builtins.tuple):
+      for arg_type, arg in zip(arg_types, value):
+        serialize(arg, file, arg_type)
     case types.GenericAlias(__args__=(item_type,), __origin__=collections.deque):
       serialize(value.maxlen, file, Optional[int])
       serialize(value, file, builtins.list[item_type])
@@ -113,10 +122,12 @@ def deserialize(file: IO[bytes], encoding: EncodingFormat) -> Any:
       return Ellipsis
     case types.NoneType:
       return None
-    case types.GenericAlias(__args__=(item_type,), __origin__=builtins.list):
-      return [deserialize(file, item_type) for _ in range(primitive_deserialize(file, 'v8'))]
-    case types.GenericAlias(__args__=(item_type,), __origin__=builtins.set):
-      return {deserialize(file, item_type) for _ in range(primitive_deserialize(file, 'v8'))}
+    case types.GenericAlias(__args__=(key_type, value_type), __origin__=builtins.dict):
+      return { deserialize(file, key_type): deserialize(file, value_type) for _ in range(primitive_deserialize(file, 'v8')) }
+    case types.GenericAlias(__args__=(item_type,), __origin__=(builtins.frozenset | builtins.list | builtins.set)) | types.GenericAlias(__args__=(item_type, builtins.Ellipsis), __origin__=builtins.tuple):
+      return encoding.__origin__(deserialize(file, item_type) for _ in range(primitive_deserialize(file, 'v8')))
+    case types.GenericAlias(__args__=arg_types, __origin__=builtins.tuple):
+      return tuple(deserialize(file, arg_type) for arg_type in arg_types)
     case types.GenericAlias(__args__=(item_type,), __origin__=collections.deque):
       maxlen = deserialize(file, Optional[int])
       return collections.deque(deserialize(file, builtins.list[item_type]), maxlen=maxlen)
